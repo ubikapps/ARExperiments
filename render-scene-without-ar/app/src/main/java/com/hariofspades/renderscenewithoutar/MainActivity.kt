@@ -2,13 +2,15 @@ package com.hariofspades.renderscenewithoutar
 
 import android.net.Uri
 import android.os.Bundle
+import android.support.animation.FlingAnimation
+import android.support.animation.FloatValueHolder
 import android.support.v7.app.AlertDialog
 import android.support.v7.app.AppCompatActivity
-import android.view.GestureDetector
-import android.view.MotionEvent
-import com.google.ar.sceneform.HitTestResult
+import android.view.MotionEvent.*
+import android.view.VelocityTracker
 import com.google.ar.sceneform.Node
 import com.google.ar.sceneform.Scene
+import com.google.ar.sceneform.math.Quaternion
 import com.google.ar.sceneform.math.Vector3
 import com.google.ar.sceneform.rendering.ModelRenderable
 import kotlinx.android.synthetic.main.activity_main.*
@@ -25,6 +27,13 @@ class MainActivity : AppCompatActivity() {
     lateinit var scene: Scene
 
     lateinit var cupCakeNode: Node
+    private var distToModel: Float = 0.0f
+
+    var angle: Float = 0.0f
+    var oldX: Float = 0.0f
+    var oldY: Float = 0.0f
+    var velocityTracker: VelocityTracker = VelocityTracker.obtain()
+    var fling : FlingAnimation? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +52,7 @@ class MainActivity : AppCompatActivity() {
                 .build()
                 .thenAccept {
                     addNodeToScene(it)
+                    addTouchListener()
                 }
                 .exceptionally {
                     val builder = AlertDialog.Builder(this)
@@ -70,7 +80,58 @@ class MainActivity : AppCompatActivity() {
                 renderable = it
             }
 
+
             scene.addChild(cupCakeNode)
+        }
+    }
+
+    private fun addTouchListener(){
+        distToModel = Vector3.subtract(scene.camera.worldPosition, cupCakeNode.worldPosition).length() * 10f
+
+        scene.setOnTouchListener { hitTestResult, motionEvent ->
+            when(motionEvent.action) {
+                ACTION_DOWN -> {
+                    fling?.cancel()
+                }
+                ACTION_MOVE -> {
+                    fling = FlingAnimation(FloatValueHolder(motionEvent.x))
+                    velocityTracker.addMovement(motionEvent)
+                    val touchX = motionEvent.x
+                    val touchY = motionEvent.y
+
+                    val deltaX = touchX - oldX
+                    val deltaY = touchY - oldY
+                    oldX = touchX
+                    oldY = touchY
+                    angle += Math.atan((deltaX / distToModel).toDouble()).toFloat()
+
+                    cupCakeNode.localRotation = Quaternion.axisAngle(Vector3(0.0f, 1.0f, 0.0f), angle)
+                }
+                ACTION_CANCEL ->{
+                    fling?.cancel()
+                    velocityTracker.recycle()
+                }
+                ACTION_UP ->{
+                    velocityTracker.computeCurrentVelocity(1000)
+                    fling?.apply {
+                        setStartVelocity(velocityTracker.xVelocity)
+                        friction = 1.1f
+                        addUpdateListener { dynamicAnimation, value, velocity ->
+                            angle += Math.atan((value / distToModel).toDouble()).toFloat()
+                            angle += Math.atan((value / distToModel).toDouble()).toFloat()
+
+                            cupCakeNode.localRotation = Quaternion.axisAngle(Vector3(0.0f, 1.0f, 0.0f), angle)
+                        }
+                        addEndListener {dynamicAnimation, cancelled: Boolean, value: Float, velocity: Float ->
+                            angle += value
+                        }
+                    }
+                    fling?.start()
+
+//                    velocityTracker.recycle()
+                }
+            }
+            true
         }
     }
 
