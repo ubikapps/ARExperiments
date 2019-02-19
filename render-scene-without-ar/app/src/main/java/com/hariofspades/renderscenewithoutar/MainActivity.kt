@@ -23,7 +23,7 @@ import kotlinx.android.synthetic.main.activity_main.*
  *
  */
 class MainActivity : AppCompatActivity() {
-
+    private val TAG = "Main"
     lateinit var scene: Scene
 
     lateinit var cupCakeNode: Node
@@ -32,7 +32,7 @@ class MainActivity : AppCompatActivity() {
     var angle: Float = 0.0f
     var oldX: Float = 0.0f
     var oldY: Float = 0.0f
-    var velocityTracker: VelocityTracker = VelocityTracker.obtain()
+    var velocityTracker: VelocityTracker? = null
     var fling : FlingAnimation? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,10 +92,16 @@ class MainActivity : AppCompatActivity() {
             when(motionEvent.action) {
                 ACTION_DOWN -> {
                     fling?.cancel()
+                    if(velocityTracker == null) {
+                        velocityTracker = VelocityTracker.obtain()
+                    } else {
+                        velocityTracker?.clear()
+                    }
+                    velocityTracker?.addMovement(motionEvent)
                 }
                 ACTION_MOVE -> {
                     fling = FlingAnimation(FloatValueHolder(motionEvent.x))
-                    velocityTracker.addMovement(motionEvent)
+                    velocityTracker?.addMovement(motionEvent)
                     val touchX = motionEvent.x
                     val touchY = motionEvent.y
 
@@ -109,21 +115,18 @@ class MainActivity : AppCompatActivity() {
                 }
                 ACTION_CANCEL ->{
                     fling?.cancel()
-                    velocityTracker.recycle()
+                    velocityTracker?.recycle()
                 }
                 ACTION_UP ->{
-                    velocityTracker.computeCurrentVelocity(1000)
+                    velocityTracker?.computeCurrentVelocity(1000)
                     fling?.apply {
-                        setStartVelocity(velocityTracker.xVelocity)
+                        setStartVelocity(velocityTracker!!.xVelocity)
                         friction = 1.1f
                         addUpdateListener { dynamicAnimation, value, velocity ->
                             angle += Math.atan((value / distToModel).toDouble()).toFloat()
                             angle += Math.atan((value / distToModel).toDouble()).toFloat()
 
                             cupCakeNode.localRotation = Quaternion.axisAngle(Vector3(0.0f, 1.0f, 0.0f), angle)
-                        }
-                        addEndListener {dynamicAnimation, cancelled: Boolean, value: Float, velocity: Float ->
-                            angle += value
                         }
                     }
                     fling?.start()
